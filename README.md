@@ -26,7 +26,7 @@ This repository contains the supplementary code for the paper:
 
 - Tested on:
 
-&nbsp; - **Linux** (Ubuntu 20.04) / **Windows 11**
+&nbsp; - **Linux** (Ubuntu 20.04)
 
 &nbsp; - NVIDIA RTX 4090 GPU + AMD EPYC 7502 CPU  
 
@@ -159,15 +159,11 @@ If you use this code, please cite the paper:
 ```
 
 @article{Zhong2025,
-
-&nbsp; title   = {A Physics-Informed Neural Networks-Based Model Predictive Control Framework for SIR Epidemics},
-
-&nbsp; author  = {Aiping Zhong, Baike She, Philip E. Paré},
-
-&nbsp; journal = {IEEE Open Journal of Control Systems},
-
-&nbsp; year    = {2025}
-
+  author  = {Aiping Zhong and Baike She and Philip E. Paré},
+  title   = {A Physics-Informed Neural Networks-Based Model Predictive Control Framework for SIR Epidemics},
+  journal = {IEEE Open Journal of Control Systems},
+  year    = {2025},
+  note    = {submitted}
 }
 
 ```
