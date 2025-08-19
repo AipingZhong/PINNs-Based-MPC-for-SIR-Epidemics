@@ -1,0 +1,393 @@
+import sciann as sn
+import time
+import numpy as np
+import pandas as pd
+from scipy.integrate import odeint
+import casadi as ca
+import os
+import tensorflow
+
+# Define SIR model parameters
+N = 1000000.0  # Total population
+kappa = 0.01  # Noise regulation factor;
+
+S0, I0, R0 = 1.0 - 0.001, 0.001, 0.0  # Initial conditions
+x0 = [S0, I0, R0]
+gamma = 0.2  # Recovery rate
+beta = 0.6  # Transmission rate
+r_max = 3.0  # Basic reproduction number
+
+tf = 50.0  # Total simulation time
+
+# MPC parameters
+N_pri = 14  # Prediction horizon length
+alpha1, alpha2 = 1e3, 1.0  # Cost function weights
+I_max = 0.1  # Maximum infected ratio
+u_max = 0.4  # Control constraint
+Ts = 5  # Sampling interval
+start_control = 10  # Time to start control 10
+end_control = 39  # Time to end control 39
+end_control_int = int(end_control)
+S_target = 1 / 3  # Target susceptible population ratio
+
+# Training optimizer settings
+loss_err = 'mse'
+optimizer = 'adam'
+adaptive_NTK = {'method': 'NTK', 'freq': 100}
+Nc = 5000  # Number of collocation points
+epochs_data = 4500  # Epochs for data loss
+epochs_ode = 5000  # Epochs for physics-informed training
+
+# Number of experiment runs
+num_runs = 3
+
+# Define the SIR model without control
+def SIR(x, t, gamma, beta):
+    S, I, R = x
+    lambda_val = beta * I
+    dSdt = -lambda_val * S
+    dIdt = lambda_val * S - gamma * I
+    dRdt = gamma * I
+    return [dSdt, dIdt, dRdt]
+
+
+# Define the SIR model with control input
+def SIR_with_control(x, t, gamma, beta, u):
+    S, I, R = x
+    gamma_val = gamma + u
+    dSdt = -beta * I * S
+    dIdt = beta * I * S - gamma_val * I
+    dRdt = gamma_val * I
+    return [dSdt, dIdt, dRdt]
+
+
+# Compute mean and std (if num_runs >= 3)
+def compute_mean_std(values):
+    values = np.asarray(values)
+    if values.ndim == 1:
+        mean_value = np.mean(values)
+        std_value = np.std(values)
+        return mean_value, std_value
+    elif values.ndim == 2:
+        mean_values = np.mean(values, axis=1)
+        std_values = np.std(values, axis=1)
+        return mean_values, std_values
+    else:
+        raise ValueError("Input array must be 1D or 2D.")
+
+# Generate initial conditions and observations
+t_span_initial = np.arange(0, start_control + 1)
+x_initial = odeint(SIR, x0, t_span_initial, args=(gamma, beta))
+np.random.seed(273)
+S_initial, I_initial, R_initial = x_initial[:, 0], x_initial[:, 1], x_initial[:, 2]
+I_observation_initial = np.clip(np.random.poisson(np.clip(I_initial * kappa * N, 0, None)) / (kappa * N), 0, 1)
+
+# Initialize true value arrays
+tf_int = int(tf)
+S_true = np.zeros(tf_int + 1)
+I_true = np.zeros(tf_int + 1)
+R_true = np.zeros(tf_int + 1)
+I_observation = np.zeros(tf_int + 1)
+S_true[:start_control + 1] = S_initial
+I_true[:start_control + 1] = I_initial
+R_true[:start_control + 1] = R_initial
+I_observation[:start_control + 1] = I_observation_initial
+
+# Initialize arrays to store each run's results
+S_est_runs = np.zeros((tf_int + 1, num_runs))
+I_est_runs = np.zeros((tf_int + 1, num_runs))
+R_est_runs = np.zeros((tf_int + 1, num_runs))
+U_est_runs = np.zeros((tf_int + 1, num_runs))
+beta_est_runs = np.zeros((tf_int + 1, num_runs))
+time_ode_used_runs = np.zeros((tf_int + 1, num_runs))
+time_data_used_runs = np.zeros((tf_int + 1, num_runs))
+loss_ode_runs = np.zeros((tf_int + 1, num_runs))
+loss_data_runs = np.zeros((tf_int + 1, num_runs))
+
+# Initialize arrays to store mean and std
+S_est_mean = np.zeros(tf_int + 1)
+I_est_mean = np.zeros(tf_int + 1)
+R_est_mean = np.zeros(tf_int + 1)
+U_est_mean = np.zeros(tf_int + 1)
+beta_est_mean = np.zeros(tf_int + 1)
+S_est_std = np.zeros(tf_int + 1)
+I_est_std = np.zeros(tf_int + 1)
+R_est_std = np.zeros(tf_int + 1)
+U_est_std = np.zeros(tf_int + 1)
+beta_est_std = np.zeros(tf_int + 1)
+time_data_used_mean = np.zeros(tf_int + 1)
+loss_data_mean = np.zeros(tf_int + 1)
+time_ode_used_mean = np.zeros(tf_int + 1)
+loss_ode_mean = np.zeros(tf_int + 1)
+
+# Initialize array to store applied control inputs
+u_used_array = np.zeros(tf_int + 1)
+
+# ideal MPC control
+for k in range(start_control, int(tf)):
+    # print(f"\nTime Step {k}/{int(tf)}")
+    if ((k - start_control) % Ts == 0 or k == start_control) and k <= end_control:
+        # Solve MPC with estimated values
+        S_var, I_var = S_true[k], I_true[k]
+
+        u_numbers = int(np.ceil(N_pri / Ts))
+        u_k_var = ca.SX.sym('u_k', u_numbers)
+
+        cost_est = 0
+        constraints_est = []
+
+        for i in range(N_pri):
+            current_u_index = i // Ts
+            current_u = u_k_var[current_u_index]
+
+            gamma_u_est = gamma + current_u
+            dSdt_est = -beta * S_var * I_var
+            dIdt_est = beta * S_var * I_var - gamma_u_est * I_var
+            S_var += dSdt_est
+            I_var += dIdt_est
+            cost_est += alpha1 * (S_var - S_target) ** 2 + alpha2 * current_u ** 2
+            constraints_est.append(I_var - I_max)
+
+        nlp_est = {'x': u_k_var, 'f': cost_est, 'g': ca.vertcat(*constraints_est)}
+        lbx = [0.0] * u_numbers
+        ubx = [u_max] * u_numbers
+        lbg = [-ca.inf] * len(constraints_est)
+        ubg = [0.0] * len(constraints_est)
+
+        opts = {'print_time': False, 'ipopt': {'print_level': 0}}
+        solver_est = ca.nlpsol('solver_est', 'ipopt', nlp_est, opts)
+
+        try:
+            sol_est = solver_est(lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
+            u_opt_est = sol_est['x'].full().flatten()[0]
+            u_used = u_opt_est
+            print(f"Time Step {k} | Optimal Control Input u_used = {u_used:.5f}")
+        except RuntimeError as e:
+            print(f"Time Step {k} | MPC optimization failed: {e}")
+            break
+
+        # Apply control input for Ts steps
+        end_index = min(k + Ts, tf_int + 1, end_control_int + 1)
+        u_used_array[k:end_index] = u_used
+        print(f"Time Step {k} | Updated u_used_array[{k}:{end_index}] = {u_used_array[k:end_index]}")
+
+    # Update true SIR model states
+    t_span = [k, k + 1]
+    x0 = [S_true[k], I_true[k], R_true[k]]
+    sol = odeint(SIR_with_control, x0, t_span, args=(gamma, beta, u_used_array[k]))
+    S_true[k + 1], I_true[k + 1], R_true[k + 1] = sol[-1]
+    I_observation[k + 1] = np.clip(np.random.poisson(np.clip(I_true[k + 1] * (kappa * N), 0, None)) / (kappa * N), 0, 1)
+
+# After simulation ends, run the model training 'num_runs' times to estimate SIR and beta from (0) to tf
+for run in range(num_runs):
+    print(f"\nPost-simulation, Run {run + 1} model training")
+    sn.reset_session()
+
+    # Prepare training data
+    t_data_k = np.arange(0, int(tf) + 1)  # include time step k
+    t_data_sc_k = t_data_k / tf
+    I_obs_k = I_observation[:int(tf) + 1].reshape(-1, 1)
+    u_train_k = u_used_array[:int(tf) + 1].reshape(-1, 1)
+
+
+    # Define variables and neural networks
+    t = sn.Variable('t')
+    u = sn.Variable('u')
+
+    # Step 1: Data Regression - train I and U networks
+    I_dr = sn.Functional('I_dr', [t, u], 4 * [50], output_activation='sigmoid')
+
+    # Loss functions
+    loss_data = [sn.Data(I_dr)]
+
+    # Build SciModel
+    pinn_data = sn.SciModel(
+        inputs=[t, u],
+        targets=loss_data,
+        loss_func=loss_err,
+        optimizer=optimizer)
+
+    time1_data = time.time()
+    history_data = pinn_data.train([t_data_sc_k.reshape(-1, 1), u_train_k],
+                                   I_obs_k,
+                                   epochs=epochs_data,
+                                   batch_size=10,
+                                   verbose=0)
+    time2_data = time.time()
+
+    time_data_used = time2_data - time1_data
+    loss_data = history_data.history['loss'][-1]
+    print(f"Time step {tf_int} data regression completed, final epoch loss: {loss_data:.5e}")
+    print(f"Data regression training time: {time_data_used:.2f} seconds")
+
+    # Step 2: Integral Operation
+    # Use trained model to estimate full-time I
+    I_est_full = I_dr.eval(pinn_data, [t_data_sc_k.reshape(-1, 1), u_train_k]).flatten()
+
+    # Derive R and S from estimated I
+    R_derived_full = np.zeros(tf_int + 1)
+    for i_est in range(tf_int):
+        R_derived_full[i_est + 1] = R_derived_full[i_est] + (gamma + u_used_array[i_est]) * I_est_full[i_est]
+
+    S_derived_full = 1.0 - I_est_full - R_derived_full
+
+    # Build training data
+    S_derived = S_derived_full[:tf_int + 1].reshape(-1, 1)
+    R_derived = R_derived_full[:tf_int + 1].reshape(-1, 1)
+
+    # Step 3: Physics-Informed Training
+    S = sn.Functional('S', [t, u], 4 * [50], output_activation='sigmoid')
+    I = sn.Functional('I', [t, u], 4 * [50], output_activation='sigmoid', trainable=False)
+    Beta = sn.Parameter(name='Beta', inputs=[t, u], non_neg=True)
+    R = 1.0 - I - S
+    gamma_control = u + gamma
+
+    # Initialize weights with those from data regression
+    I.set_weights(I_dr.get_weights())
+
+    # Initial conditions
+    L_S0 = sn.rename((S - S_true[0]) * (1 - sn.sign(t)), 'L_S0')
+    L_R0 = sn.rename((R - R_true[0]) * (1 - sn.sign(t)), 'L_R0')
+
+    # ODEs
+    L_dSdt = sn.rename((sn.diff(S, t) + tf * Beta * I * S), 'L_dSdt')
+    L_dIdt = sn.rename((sn.diff(I, t) - tf * Beta * I * S + tf * gamma_control * I), 'L_dIdt')
+    L_dRdt = sn.rename((sn.diff(R, t) - tf * gamma_control * I), 'L_dRdt')
+
+    # Loss function
+    loss_ode = [
+        sn.PDE(L_dSdt), sn.PDE(L_dIdt), sn.PDE(L_dRdt),
+        sn.PDE(L_S0), sn.PDE(L_R0),
+        sn.Data(S), sn.Data(R)
+    ]
+
+    # Construct SciModel
+    pinn_ode = sn.SciModel([t, u], loss_ode, loss_err, optimizer)
+
+    t_ode = np.arange(len(t_data_k))
+    loss_train_ode = ['zeros'] * 5 + [(t_ode, S_derived), (t_ode, R_derived)]
+
+    # Generate collocation points
+    t_train_ode = np.random.uniform(np.log1p(0 / tf), np.log1p(1.0), Nc).reshape(-1, 1)
+    t_train_ode = np.exp(t_train_ode) - 1.
+
+    # Expand the non-uniform time points to the range [0, k + 1] and apply floor operation
+    t_train_ode_scaled = t_train_ode.flatten() * tf
+    t_train_rounded = np.floor(t_train_ode_scaled).astype(int)
+    # Extract fixed u values from u_train_k using rounded time indices
+    u_train_ode = u_train_k[t_train_rounded].reshape(-1, 1)
+
+    # Concatenate data points and collocation points
+    t_train = np.concatenate([t_data_sc_k.reshape(-1, 1), t_train_ode])
+    u_train = np.concatenate([u_train_k, u_train_ode])
+
+    # Train model
+    log_params = {'parameters': Beta, 'freq': 1}
+
+    time1_ode = time.time()
+    history_ode = pinn_ode.train([t_train, u_train],
+                                 loss_train_ode,
+                                 epochs=epochs_ode,
+                                 batch_size=100,
+                                 log_parameters=log_params,
+                                 adaptive_weights=adaptive_NTK,
+                                 verbose=0,
+                                 stop_loss_value=1e-13)
+    time2_ode = time.time()
+
+    time_ode_used = time2_ode - time1_ode
+    loss_ode = history_ode.history['loss'][-1]
+    print(f"[Time Step {tf_int}] Physics-informed model training completed. Final epoch loss: {loss_ode:.5e}")
+    print(f"Physics-informed training time: {time_ode_used:.2f} seconds")
+
+    t_k_sc = np.array([[tf_int / tf]]).reshape(-1, 1)
+    beta_est_val = Beta.eval(pinn_ode,[t_k_sc, np.array([[0]])]).flatten()[0]
+    S_est_full = S.eval(pinn_ode, [t_data_sc_k.reshape(-1, 1), u_train_k]).flatten()
+    # I_est_full = I.eval(pinn_ode, [t_data_sc_k.reshape(-1, 1), u_train_k]).flatten()
+    R_est_full = R.eval(pinn_ode, [t_data_sc_k.reshape(-1, 1), u_train_k]).flatten()
+
+    # Store results for time steps 0 to tf
+    S_est_runs[0:tf_int + 1, run] = S_est_full[0:tf_int + 1]
+    I_est_runs[0:tf_int + 1, run] = I_est_full[0:tf_int + 1]
+    R_est_runs[0:tf_int + 1, run] = R_est_full[0:tf_int + 1]
+    beta_est_runs[0:tf_int + 1, run] = beta_est_val
+
+    # Store final step time and loss
+    time_data_used_runs[tf_int, run] = time_data_used
+    loss_data_runs[tf_int, run] = loss_data
+    time_ode_used_runs[tf_int, run] = time_ode_used
+    loss_ode_runs[tf_int, run] = loss_ode
+
+# Compute mean and standard deviation, excluding max and min values across all runs
+S_est_mean, S_est_std = compute_mean_std(S_est_runs)
+I_est_mean, I_est_std = compute_mean_std(I_est_runs)
+R_est_mean, R_est_std = compute_mean_std(R_est_runs)
+beta_est_mean, beta_est_std = compute_mean_std(beta_est_runs)
+time_data_used_mean, _ = compute_mean_std(time_data_used_runs)
+loss_data_mean, _ = compute_mean_std(loss_data_runs)
+time_ode_used_mean, _ = compute_mean_std(time_ode_used_runs)
+loss_ode_mean, _ = compute_mean_std(loss_ode_runs)
+
+print("Final values in u_used_array:")
+print(u_used_array)
+
+# Create output directory
+if kappa == 0.01:
+    output_dir = 'Plot/MPC_SI_PINNs1_kappa0.01_ideal_mpc'
+
+os.makedirs(output_dir, exist_ok=True)  # Ensure directory exists
+
+# Save mean and std DataFrame
+results_mean_df = pd.DataFrame({
+    'Time': np.arange(tf_int + 1),
+    'S_true': S_true,
+    'I_true': I_true,
+    'R_true': R_true,
+    'I_observation': I_observation,
+    'S_mean': S_est_mean,
+    'I_mean': I_est_mean,
+    'R_mean': R_est_mean,
+    'S_std': S_est_std,
+    'I_std': I_est_std,
+    'R_std': R_est_std,
+    'beta_true': beta,
+    'beta_mean': beta_est_mean,
+    'beta_std': beta_est_std,
+    'u_actual': u_used_array,
+    'time_data_used_mean': time_data_used_mean,
+    'loss_data_mean': loss_data_mean,
+    'time_ode_used_mean': time_ode_used_mean,
+    'loss_ode_mean': loss_ode_mean
+})
+
+# Save mean/std to file
+output_path = os.path.join(output_dir, 'mean_std.csv')
+results_mean_df.to_csv(output_path, index=False)
+print(f"Mean and standard deviation saved to '{output_path}'.")
+
+# Save each run's results
+for run in range(num_runs):
+    results_run_df = pd.DataFrame({
+        'Time': np.arange(tf_int + 1),
+        'S_true': S_true,
+        'I_true': I_true,
+        'R_true': R_true,
+        'I_observation': I_observation,
+        'S_est': S_est_runs[:, run],
+        'I_est': I_est_runs[:, run],
+        'R_est': R_est_runs[:, run],
+        'beta_est': beta_est_runs[:, run],
+        'beta_true': beta,
+        'u_actual': u_used_array,
+        'time_data_used': time_data_used_runs[:, run],
+        'loss_data': loss_data_runs[:, run],
+        'time_ode_used': time_ode_used_runs[:, run],
+        'loss_ode': loss_ode_runs[:, run]
+    })
+
+    filename = f'{run + 1}.csv'
+    file_path = os.path.join(output_dir, filename)
+    results_run_df.to_csv(file_path, index=False)
+    print(f"Run {run + 1} results saved to '{file_path}'.")
+
+print("\nAll results have been saved to CSV files.")
