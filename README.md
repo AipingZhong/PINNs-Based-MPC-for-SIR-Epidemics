@@ -1,10 +1,10 @@
-\# EpiPINN – Supplementary Code
+# EpiPINN – Supplementary Code
 
 
 
 This repository contains the supplementary code for the paper:  
 
-\*\*“A Physics-Informed Neural Networks-Based Model Predictive Control Framework for SIR Epidemics”\*\* (submitted to IEEE Open Journal of Control Systems).
+**“A Physics-Informed Neural Networks-Based Model Predictive Control Framework for SIR Epidemics”** (submitted to IEEE Open Journal of Control Systems).
 
 
 
@@ -12,21 +12,21 @@ This repository contains the supplementary code for the paper:
 
 
 
-\## 1. Tested Environment
+## 1. Tested Environment
 
-\- Python 3.10 (recommended)
+- Python 3.10 (recommended)
 
-\- TensorFlow 2.10.0 (`tensorflow-gpu==2.10.0`; use `tensorflow==2.10.0` if GPU not available)
+- TensorFlow 2.10.0 (`tensorflow-gpu==2.10.0`; use `tensorflow==2.10.0` if GPU not available)
 
-\- SciANN 0.7.0.1  
+- SciANN 0.7.0.1  
 
-\- CasADi 3.6.7  
+- CasADi 3.6.7  
 
-\- NumPy 1.24.4, SciPy 1.14.1, Matplotlib 3.9.1, Pandas 2.2.3, Scikit-learn 1.5.2  
+- NumPy 1.24.4, SciPy 1.14.1, Matplotlib 3.9.1, Pandas 2.2.3, Scikit-learn 1.5.2  
 
-\- Tested on:
+- Tested on:
 
-&nbsp; - \*\*Linux\*\* (Ubuntu 20.04) / \*\*Windows 11\*\*
+&nbsp; - **Linux** (Ubuntu 20.04) / **Windows 11**
 
 &nbsp; - NVIDIA RTX 4090 GPU + AMD EPYC 7502 CPU  
 
@@ -38,7 +38,7 @@ This repository contains the supplementary code for the paper:
 
 
 
-\## 2. Installation
+## 2. Installation
 
 Create a virtual environment and install dependencies:
 
@@ -46,15 +46,15 @@ Create a virtual environment and install dependencies:
 
 ```bash
 
-\# Create and activate a virtual environment
+# Create and activate a virtual environment
 
 python -m venv .venv
 
-source .venv/bin/activate        # On Windows: .venv\\Scripts\\activate
+source .venv/bin/activate        # On Windows: .venvScriptsactivate
 
 
 
-\# Install dependencies
+# Install dependencies
 
 pip install -r requirements.txt
 
@@ -72,25 +72,25 @@ pip install -r requirements.txt
 
 
 
-\## 3. Code Structure
+## 3. Code Structure
 
-\- `code/PINNs-Based MPC Frameworks/`  
+- `code/PINNs-Based MPC Frameworks/`  
 
-&nbsp; Main implementations of \*\*MPC-PINNs\*\*, \*\*MPC-LS-PINNs\*\*, \*\*MPC-SI-PINNs\*\*, and their generalized variants.  
+&nbsp; Main implementations of **MPC-PINNs**, **MPC-LS-PINNs**, **MPC-SI-PINNs**, and their generalized variants.  
 
-\- `code/Supporting Material\_NN Architectures/`  
+- `code/Supporting Material_NN Architectures/`  
 
 &nbsp; Scripts for architecture comparisons.  
 
-\- `code/Supporting Material\_Sensitive Analysis/`  
+- `code/Supporting Material_Sensitive Analysis/`  
 
 &nbsp; Scripts for parameter-sensitivity experiments.  
 
-\- `requirements.txt`  
+- `requirements.txt`  
 
 &nbsp; Dependency list.  
 
-\- `SUMMARY.md`  
+- `SUMMARY.md`  
 
 &nbsp; Overview of supplementary materials.  
 
@@ -100,7 +100,7 @@ pip install -r requirements.txt
 
 
 
-\## 4. Quick Start
+## 4. Quick Start
 
 Run one of the provided scripts, for example:
 
@@ -108,31 +108,17 @@ Run one of the provided scripts, for example:
 
 ```bash
 
-python MPC\_LS\_PINNs.py
+python MPC_LS_PINNs.py
 
 ```
 
 
 
-\- Default settings reproduce the simulation reported in the paper.  
+- Default settings reproduce the simulation reported in the paper.  
 
-\- To \*\*quickly test\*\* functionality, reduce the number of training epochs or collocation points in the script.  
+- To **quickly test** functionality, reduce the number of training epochs or collocation points in the script.  
 
-\- Output (plots and metrics) will be saved in the current directory.  
-
-
-
----
-
-
-
-\## 5. Data
-
-\- The code generates \*\*synthetic SIR trajectories internally\*\*.  
-
-\- \*\*No external dataset is required.\*\*  
-
-\- To use your own epidemic data, replace the synthetic data generation block in each script.  
+- Output (plots and metrics) will be saved in the current directory.  
 
 
 
@@ -140,9 +126,13 @@ python MPC\_LS\_PINNs.py
 
 
 
-\## 6. License
+## 5. Data
 
-This project is released under the \*\*MIT License\*\* (see `LICENSE` file).  
+- The code generates **synthetic SIR trajectories internally**.  
+
+- **No external dataset is required.**  
+
+- To use your own epidemic data, replace the synthetic data generation block in each script.  
 
 
 
@@ -150,7 +140,17 @@ This project is released under the \*\*MIT License\*\* (see `LICENSE` file).
 
 
 
-\## 7. Citation
+## 6. License
+
+This project is released under the **MIT License** (see `LICENSE` file).  
+
+
+
+---
+
+
+
+## 7. Citation
 
 If you use this code, please cite the paper:
 
