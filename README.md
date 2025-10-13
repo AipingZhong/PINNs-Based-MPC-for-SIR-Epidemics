@@ -71,28 +71,34 @@ pip install -r requirements.txt
 ---
 
 
-
 ## 3. Code Structure
 
-- `code/PINNs-Based MPC Frameworks/`  
+- **`PINNs-Based MPC Frameworks/`**  
+  Main implementations of the proposed frameworks:  
+  - `MPC-PINNs`: baseline algorithm for joint estimation and control.  
+  - `MPC-LS-PINNs`: log-scaled loss for enhanced noise robustness.  
+  - `MPC-SI-PINNs`: split-integral training for faster convergence.  
+  - Generalized versions (`MPC-S-PINNs`, etc.) for simultaneous estimation of $\beta$ and $\gamma$ under known $R_0$.
+  -  Additional scripts (`Generalized_MPC_PINNs_unknownR0`, `Generalized_MPC_LS_PINNs_unknownR0`, `Generalized_MPC_S_PINNs_unknownR0`) are provided to evaluate the framework performance when the basic reproduction number $R_0$ is **unknown**, following the ablation setup described in Section IV-C.
 
-&nbsp; Main implementations of **MPC-PINNs**, **MPC-LS-PINNs**, **MPC-SI-PINNs**, and their generalized variants.  
 
-- `code/Supporting Material_NN Architectures/`  
+- **`Comparison of Different Neural Network Architectures/`**  
+  Experiments evaluating SISO, MISO, SIMO, and MIMO neural network designs, as discussed in Section IV-D.
 
-&nbsp; Scripts for architecture comparisons.  
+- **`Comparison with the Extended Kalman Filter/`**  
+  Benchmark experiments comparing the proposed PINNs-based estimators with the classical EKF method (Section IV-E).
 
-- `code/Supporting Material_Sensitive Analysis/`  
+- **`Case Study with Real-World Data/`**  
+  Validation using real COVID-19 data from Italy (Oct 2021 – May 2022), corresponding to Section IV-F of the paper.
 
-&nbsp; Scripts for parameter-sensitivity experiments.  
+- **`Supporting Material_Sensitive Analysis/`**  
+Parameter-sensitivity texperiments under different **noise intensities** ($\kappa$) and  **SIR model parameters**.
 
-- `requirements.txt`  
+- **`requirements.txt`**  
+  List of dependencies and package versions.
 
-&nbsp; Dependency list.  
-
-- `SUMMARY.md`  
-
-&nbsp; Overview of supplementary materials.  
+- **`SUMMARY.md`**  
+  Overview of the repository content and experiment organization.
 
 
 
@@ -158,12 +164,11 @@ If you use this code, please cite the paper:
 
 ```
 
-@article{Zhong2025,
-  author  = {Aiping Zhong and Baike She and Philip E. Paré},
-  title   = {A Physics-Informed Neural Networks-Based Model Predictive Control Framework for SIR Epidemics},
-  journal = {IEEE Open Journal of Control Systems},
-  year    = {2025},
-  note    = {submitted}
+@article{zhong2025physics,
+  title={A Physics-Informed Neural Networks-Based Model Predictive Control Framework for $ SIR $ Epidemics},
+  author={Zhong, Aiping and She, Baike and Par{\'e}, Philip E},
+  journal={arXiv preprint arXiv:2509.12226},
+  year={2025}
 }
 
 ```
