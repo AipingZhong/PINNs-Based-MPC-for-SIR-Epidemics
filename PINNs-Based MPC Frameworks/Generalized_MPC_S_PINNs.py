@@ -514,7 +514,7 @@ if True:
         Gamma_control = u + Gamma
         Beta = repro * Gamma
 
-        # 尝试加载物理网络权重
+        # Try loading the physical network weights
         S.set_weights(prev_weights_by_run[run]['S'])
         epochs_ode_current = epochs_ode_reuse
 
