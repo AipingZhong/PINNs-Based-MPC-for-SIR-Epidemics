@@ -30,7 +30,6 @@ This repository contains the supplementary code for the paper:
 
 &nbsp; - NVIDIA RTX 4090 GPU + AMD EPYC 7502 CPU  
 
-&nbsp; - GPU is recommended but not required
 
 
 
@@ -59,12 +58,6 @@ source .venv/bin/activate        # On Windows: .venvScriptsactivate
 pip install -r requirements.txt
 
 ```
-
-
-
-⚠️ If no GPU is available, edit `requirements.txt` and replace  
-
-`tensorflow-gpu==2.10.0` with `tensorflow==2.10.0`.
 
 
 
