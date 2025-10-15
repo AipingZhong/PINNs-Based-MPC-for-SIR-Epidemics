@@ -30,6 +30,9 @@ The work introduces an MPC–PINNs closed-loop framework for real-time epidemic 
 - **`Supporting Material_Sensitive Analysis/`**  
   Parameter-sensitivity texperiments under different **noise intensities** ($\kappa$) and  **SIR model parameters**.
 
+- **`Supporting Material_SIRS/`**  
+Examine the extensibility of the proposed MPC-PINNs framework to **SIRS models with temporary immunity**.
+
 ---
 
 ## Purpose
