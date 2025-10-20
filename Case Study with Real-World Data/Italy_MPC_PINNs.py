@@ -20,7 +20,7 @@ Nc = 5000  # Number of collocation points
 epochs = 5000  # Number of epochs for training
 
 # Number of experiment runs
-num_runs = 3
+num_runs = 1
 
 # Known gamma value
 gamma = 1.0 / 19.0  # Fixed gamma = 1/19
@@ -79,7 +79,7 @@ def log_mse(y_true, y_pred):
 print("Loading and preprocessing data...")
 
 # Load CSV data
-df = pd.read_csv('Italy_covid_data.csv')
+df = pd.read_csv('Italy_covid_data_processed.csv')
 
 print(df.columns)
 
@@ -89,17 +89,20 @@ df['Time'] = range(0, len(df))
 # Normalize Currently Infected (I)
 df['I_normalized'] = df['Currently Infected'] / N
 
+df['I_normalized_true'] = df['Currently Infected_true'] / N
+
 # Normalize Recovered/Removed (R)
-df['R_normalized'] = df['Recovered/Removed'] / N
+df['R_normalized_true'] = df['Recovered/Removed_true'] / N
 
 # Calculate and normalize Susceptible (S)
-df['S_normalized'] = (N - df['Currently Infected'] - df['Recovered/Removed']) / N
+df['S_normalized_true'] = (N - df['Currently Infected_true'] - df['Recovered/Removed_true']) / N
 
 # Extract data
 time_data = df['Time'].values
-S_data = df['S_normalized'].values
+S_data = df['S_normalized_true'].values
 I_data = df['I_normalized'].values
-R_data = df['R_normalized'].values
+I_data_true = df['I_normalized_true'].values
+R_data = df['R_normalized_true'].values
 
 # Normalize time to [0, 1]
 t_max = time_data.max()
@@ -134,7 +137,7 @@ for run in range(num_runs):
     S = sn.Functional('S', t, 4 * [50], output_activation='sigmoid')
     I = sn.Functional('I', t, 4 * [50], output_activation='sigmoid')
 
-    # Define Beta parameter (only parameter to estimate)
+    # Define parameter (only parameter to estimate)
     Beta = sn.Parameter(name='Beta', inputs=t, non_neg=True)
 
     # R is computed from S and I
@@ -142,10 +145,11 @@ for run in range(num_runs):
 
     # Initial conditions
     L_S0 = sn.rename(10 * (S - S_data[0]) * (1 - sn.sign(t)), 'L_S0')
-    L_I0 = sn.rename(10 * (I - I_data[0]) * (1 - sn.sign(t)), 'L_I0')
+    L_I0 = sn.rename(10 * (I - I_data_true[0]) * (1 - sn.sign(t)), 'L_I0')
     L_R0 = sn.rename(10 * (R - R_data[0]) * (1 - sn.sign(t)), 'L_R0')
 
     # SIR ODEs
+    # The control input u is treated as a known scalar parameter (u = 0), hence gamma + u = gamma.
     L_dSdt = sn.rename((sn.diff(S, t) + t_max * Beta * I * S), 'L_dSdt')
     L_dIdt = sn.rename((sn.diff(I, t) - t_max * Beta * I * S + t_max * gamma * I), 'L_dIdt')
     L_dRdt = sn.rename((sn.diff(R, t) - t_max * gamma * I), 'L_dRdt')
@@ -160,7 +164,7 @@ for run in range(num_runs):
     # Build SciModel
     pinn_ode = sn.SciModel(inputs=t, targets=loss_ode,
                                loss_func=[loss_err, loss_err, loss_err, loss_err, loss_err, loss_err,
-                                          log_mse], optimizer=optimizer)
+                                          loss_err], optimizer=optimizer)
 
     # Prepare training data
     t_obs = np.arange(len(time_data))
@@ -176,7 +180,7 @@ for run in range(num_runs):
     t_train = np.concatenate([time_data_normalized.reshape(-1, 1), t_train_collocation])
 
     # Train the model
-    log_params = {'parameters': [Beta], 'freq': 100}  # Only log Beta
+    log_params = {'parameters': [Beta], 'freq': 100}
 
     print(f"Training with {epochs} epochs...")
     time_start = time.time()
@@ -188,8 +192,8 @@ for run in range(num_runs):
         batch_size=100,
         log_parameters=log_params,
         adaptive_weights=adaptive_NTK,
-        verbose=0
-        # ,stop_loss_value=1e-13
+        verbose=0,
+        stop_loss_value=1e-13
     )
 
     time_end = time.time()

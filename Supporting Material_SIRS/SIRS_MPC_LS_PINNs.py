@@ -42,10 +42,10 @@ Nc = 5000  # Number of collocation points 5000
 epochs_ode_initial = 5000  # Number of epochs for the initial training 5000
 epochs_ode_reuse = 1000    # Number of epochs for training after reusing weights 1000
 
-# Number of experiment runs
+# Number of experiment runs 10
 num_runs = 1
 
-# Weight storage variable
+# 权重存储变量
 prev_weights_by_run = {}
 for run in range(num_runs):
     prev_weights_by_run[run] = {
@@ -192,7 +192,7 @@ for k in range(start_control, int(tf)):
             t = sn.Variable('t')
             S = sn.Functional('S', t, 4 * [50], output_activation='sigmoid')
             I = sn.Functional('I', t, 4 * [50], output_activation='sigmoid')
-            u = sn.Functional('u', t, 4 * [50], output_activation='sigmoid')
+            u = sn.Functional('u', t, 4 * [50], output_activation='tanh')
 
             # Weight reuse logic
             weight_reused = False
@@ -352,8 +352,8 @@ for k in range(start_control, int(tf)):
             current_u = u_k_var[current_u_index]
 
             gamma_u_est = gamma + current_u
-
-            R_var_est = 1.0 - S_var_est - I_var_est
+            # SIRS模型的状态更新
+            R_var_est = 1.0 - S_var_est - I_var_est  # 计算R
             dSdt_est = -beta_est_val * S_var_est * I_var_est + xi * R_var_est
             dIdt_est = beta_est_val * S_var_est * I_var_est - gamma_u_est * I_var_est
             dRdt_est = gamma_u_est * I_var_est - xi * R_var_est
@@ -410,7 +410,7 @@ if True:
 
         S = sn.Functional('S', t, 4 * [50], output_activation='sigmoid')
         I = sn.Functional('I', t, 4 * [50], output_activation='sigmoid')
-        u = sn.Functional('u', t, 4 * [50], output_activation='sigmoid')
+        u = sn.Functional('u', t, 4 * [50], output_activation='tanh')
 
         # Initialize using the most recent weights
         weight_reused = True

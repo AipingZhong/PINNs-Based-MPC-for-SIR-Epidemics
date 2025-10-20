@@ -192,7 +192,7 @@ for k in range(start_control, int(tf)):
             t = sn.Variable('t')
             S = sn.Functional('S', t, 4 * [50], output_activation='sigmoid')
             I = sn.Functional('I', t, 4 * [50], output_activation='sigmoid')
-            u = sn.Functional('u', t, 4 * [50], output_activation='sigmoid')
+            u = sn.Functional('u', t, 4 * [50], output_activation='tanh')
 
             # Weight reuse logic
             weight_reused = False
@@ -410,7 +410,7 @@ if True:
 
         S = sn.Functional('S', t, 4 * [50], output_activation='sigmoid')
         I = sn.Functional('I', t, 4 * [50], output_activation='sigmoid')
-        u = sn.Functional('u', t, 4 * [50], output_activation='sigmoid')
+        u = sn.Functional('u', t, 4 * [50], output_activation='tanh')
 
         # Initialize using the most recent weights
         weight_reused = True

@@ -192,7 +192,7 @@ for k in range(start_control, int(tf)):
 
             # Step 1: Data Regression - train I and U networks
             I_dr = sn.Functional('I_dr', t, 4 * [50], output_activation='sigmoid')
-            u_dr = sn.Functional('u_dr', t, 4 * [50], output_activation='sigmoid')
+            u_dr = sn.Functional('u_dr', t, 4 * [50], output_activation='tanh')
 
             # Weight reuse logic for data regression
             weight_reused = False
@@ -260,7 +260,7 @@ for k in range(start_control, int(tf)):
             # Step 3: Physics-Informed Training
             S = sn.Functional('S', t, 4 * [50], output_activation='sigmoid')
             I = sn.Functional('I', t, 4 * [50], output_activation='sigmoid', trainable=False)
-            u = sn.Functional('u', t, 4 * [50], output_activation='sigmoid', trainable=False)
+            u = sn.Functional('u', t, 4 * [50], output_activation='tanh', trainable=False)
 
             # Initialize weights with those from data regression
             I.set_weights(I_dr.get_weights())
@@ -489,7 +489,7 @@ if True:
 
         # Step 1: Data Regression
         I_dr = sn.Functional('I_dr', t, 4 * [50], output_activation='sigmoid')
-        u_dr = sn.Functional('u_dr', t, 4 * [50], output_activation='sigmoid')
+        u_dr = sn.Functional('u_dr', t, 4 * [50], output_activation='tanh')
 
         # Initialize using the most recent weights
         weight_reused = True
@@ -538,7 +538,7 @@ if True:
         # Step 3: Physics-Informed Training
         S = sn.Functional('S', t, 4 * [50], output_activation='sigmoid')
         I = sn.Functional('I', t, 4 * [50], output_activation='sigmoid', trainable=False)
-        u = sn.Functional('u', t, 4 * [50], output_activation='sigmoid', trainable=False)
+        u = sn.Functional('u', t, 4 * [50], output_activation='tanh', trainable=False)
         # Initialize I and u with weights from data regression
         I.set_weights(I_dr.get_weights())
         u.set_weights(u_dr.get_weights())
